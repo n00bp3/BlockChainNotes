@@ -1,0 +1,152 @@
+To compile chaincode (JAVA code):
+terminal path:	where code is present => Eg.: Carshowroom
+./gradlew installDist
+
+
+====================================================================================================================================================================================
+Installing hyperledger test network commands
+terminal path:	root or home
+sudo chmod 666 /var/run/docker.sock
+sudo curl -sSL https://bit.ly/2ysbOFE | bash -s -- 2.4.2 1.5.2
+
+
+====================================================================================================================================================================================
+Setting Hyperledger Fabric Test Network
+terminal path: fabric-samples/test-network
+1.Stop the previously running test network
+sudo ./network.sh down
+2.Remove the unused docker images
+sudo docker system prune
+and then y and Enter
+3.Start the test network
+sudo ./network.sh up -ca -s couchdb
+4.To create a communication channel for the peers in the test network
+sudo ./network.sh createChannel -c samplechannel
+
+Check the list of the channels for the test network
+sudo chmod 666 /var/run/docker.sock
+docker exec peer0.org1.example.com peer channel list
+
+
+====================================================================================================================================================================================
+Packaging the carshowroom chaincode
+terminal path: fabric-samples/test-network
+nano lifecycle_setup_org1.sh
+
+add following into the file
+#!/bin/sh
+export PATH=${PWD}/../bin:${PWD}:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+export ORDERER_CA=${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+
+Note: 	Press Ctrl+X to save the file.
+		Press y and Enter
+
+source ./lifecycle_setup_org1.sh
+
+peer lifecycle chaincode package Carshowroom.tar.gz --path ../chaincode/Carshowroom/build/install/Carshowroom --lang java --label Carshowroom_1
+
+
+====================================================================================================================================================================================
+Installing chaincode on Org1
+install the chaincode on Org1
+sudo chmod -R 777 .
+peer lifecycle chaincode install Carshowroom.tar.gz --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE
+
+
+====================================================================================================================================================================================
+Installing chaincode on Org2
+1.create lifecycle_setup_org2.sh
+nano lifecycle_setup_org2.sh
+
+add following into the file
+#!/bin/sh
+export PATH=${PWD}/../bin:${PWD}:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+
+# Environment variables for Org2
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+export ORDERER_CA=${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+
+Note: 	Press Ctrl+X to save the file.
+		Press y and Enter
+
+run the lifecycle_setup.sh
+source ./lifecycle_setup_org2.sh
+install your chaincode
+peer lifecycle chaincode install Carshowroom.tar.gz --peerAddresses localhost:9051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE 
+
+
+************************************************************************************************************************************************************************************
+Querying the installed chaincode on Org1 
+peer lifecycle chaincode queryinstalled --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE
+
+Querying the installed chaincode on Org1 
+peer lifecycle chaincode queryinstalled  --peerAddresses localhost:9051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE
+
+Downloading the installed chaincode from Org1
+peer lifecycle chaincode getinstalledpackage --package-id Carshowroom_1:1ff558d9bc3e71dbebd7ed8d622694970d9fa26f65ecdbfe11b7c4665f7da647 --output-directory . --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE
+
+************************************************************************************************************************************************************************************
+
+Approving chaincode for Org1
+to get the Package ID for the chaincode
+peer lifecycle chaincode queryinstalled --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE
+
+to approve the chaincode
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile $ORDERER_CA -C samplechannel --name Carshowroom --version 1.0 --init-required --package-id Carshowroom_1:1ff558d9bc3e71dbebd7ed8d622694970d9fa26f65ecdbfe11b7c4665f7da647 --sequence 1 
+
+
+====================================================================================================================================================================================
+Checking commit readiness for Org1 and Org2
+to check commit readiness for Org1
+peer lifecycle chaincode checkcommitreadiness -C samplechannel --name Carshowroom --version 1.0 --sequence 1 --output json --init-required
+
+Committing the chaincode
+nano lifecycle_setup_Channel_commit.sh
+
+add following into the file
+#!/bin/sh
+export PATH=${PWD}/../bin:${PWD}:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE_ORG1=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_TLS_ROOTCERT_FILE_ORG2=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+export ORDERER_CA=${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+
+Note: 	Press Ctrl+X to save the file.
+		Press y and Enter
+
+Run the lifecycle_setup_Channel_commit.sh
+source ./lifecycle_setup_Channel_commit.sh
+
+to commit the chaincode
+peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C samplechannel --name Carshowroom --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG1 --peerAddresses localhost:9051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG2 --version 1.0 --sequence 1 --init-required
+
+************************************************************************************************************************************************************************************
+Querying the committed chaincode from samplechannel
+peer lifecycle chaincode querycommitted -C samplechannel --name Carshowroom
+************************************************************************************************************************************************************************************
+
+Accessing the chaincode functions from Org1
+Invoke Init function
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C samplechannel -n Carshowroom --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG1 --peerAddresses localhost:9051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG2 --isInit -c '{"Args":[]}'
+
+Invoke addNewCar function
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C samplechannel -n Carshowroom --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG1 --peerAddresses localhost:9051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG2 -c '{"Args":["addNewCar", "2", "Ford","John","1000"]}'
+
+Invoke queryCarById function 
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C samplechannel -n Carshowroom --peerAddresses localhost:7051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG1 --peerAddresses localhost:9051 --tlsRootCertFiles $CORE_PEER_TLS_ROOTCERT_FILE_ORG2 -c '{"Args":["queryCarById", "2"]}'
